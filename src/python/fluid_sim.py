@@ -1,9 +1,10 @@
 import os
 import imageio
 import numpy as np
+from scipy import sparse
+from skimage.transform import warp
 
 import utils
-from skimage.transform import warp
 
 class FluidSim(object):
     def __init__(self, config):
@@ -28,20 +29,31 @@ class FluidSim(object):
         # Initialize scalar field
         init_s = config.get('init_s', None)
         if os.path.exists(init_s):
-            self.s = np.load(init_s)
+            if init_s.endswith('npy'):
+                self.s = np.load(init_s)
+            else:
+                self.s = imageio.imread(init_s) / 255.0
+                if len(self.s.shape) > 2:
+                    self.s = utils.grayscale(self.s)
             print('Loaded scalar field from `%s`.' % init_s)
         else:
             self.s = np.zeros((self.h, self.w))
 
         # Initialize velocity field
         init_v = config.get('init_v', None)
-        self.force = np.load(init_v)
         if os.path.exists(init_v):
-            self.v = self.force
+            self.v = np.load(init_v)
             print('Loaded velocity field from `%s`.' % init_v)
         else:
             self.v = np.zeros((self.h, self.w, 2))  # order: (vx, vy)
-            self.force = np.zeros((self.h, self.w, 2))
+
+        # Ref: Philip Zucker (https://bit.ly/2Tx2LuE)
+        def lapl(N):
+            diagonals = np.array([
+                -np.ones(N - 1), 2 * np.ones(N), -np.ones(N - 1)])
+            return sparse.diags(diagonals, [-1, 0, 1])
+        lapl2 = sparse.kronsum(lapl(self.w), lapl(self.h))
+        self.project_solve = sparse.linalg.factorized(lapl2)
         
         self.frame_no = 0
 
@@ -63,12 +75,11 @@ class FluidSim(object):
         self.dissipate()
 
     def update_velocity(self):
-        self.v += self.force
         self.update_velocity_boundary()
+        self.confine_vorticity()
         self.diffuse_velocity()
         self.project()
         self.convect()
-        self.project()
 
     # =================
     # Boundary handling
@@ -104,10 +115,26 @@ class FluidSim(object):
 
     def project(self):
         divergence = utils.compute_divergence(self.v)
-        soln = np.zeros((self.h, self.w))
-        utils.lin_solve(soln, -divergence, 1, 4, False, self.solver_iters)
+        soln = self.project_solve(divergence.flatten())
+        soln = soln.reshape(self.h, self.w)
         self.v -= utils.compute_gradient(soln)
         self.update_velocity_boundary()
 
     def dissipate(self):
         self.s /= self.dt * self.dissipation + 1
+
+    def confine_vorticity(self):
+        w = utils.compute_curl(self.v)
+        abs_w = np.abs(w)
+        utils.update_boundary(abs_w, False)
+
+        grad_abs_w = utils.compute_gradient(abs_w)
+        grad_abs_w /= np.linalg.norm(grad_abs_w, axis=-1, keepdims=True) + 1e-5
+
+        fx_conf = grad_abs_w[:, :, 1] * -w
+        fy_conf = grad_abs_w[:, :, 0] *  w
+        utils.update_boundary(fx_conf, False)
+        utils.update_boundary(fy_conf, False)
+
+        self.v += np.stack((fx_conf, fy_conf), -1) * self.dt
+        self.update_velocity_boundary()

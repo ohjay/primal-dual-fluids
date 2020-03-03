@@ -33,10 +33,19 @@ def v_circular(w, h):
     n[dist_to_center > 0] /= dist_to_center[dist_to_center > 0]
     tangent = np.cross(n, binormal[np.newaxis, np.newaxis, :])
     tangent[dist_to_center == 0] = 0
-    flow_field = tangent[:, :, :2] * 10.0
+    flow_field = tangent[:, :, :2] * 150.0
     
     utils.plot_flow(flow_field, out_path='init_v_circular_viz.png')
     out_path = 'init_v_circular.npy'
+    np.save(out_path, flow_field)
+    print('Wrote `%s`.' % out_path)
+
+def v_straight(w, h):
+    base_y = h // 2
+    flow_field = np.zeros((h, w, 2))
+    flow_field[base_y-15:base_y+15, :, 0] = 150.0
+
+    out_path = 'init_v_straight.npy'
     np.save(out_path, flow_field)
     print('Wrote `%s`.' % out_path)
 
@@ -54,5 +63,6 @@ if __name__ == '__main__':
     if fn_name == 'all':
         s_fixed(w, h)
         v_circular(w, h)
+        v_straight(w, h)
     else:
         eval(args.fn_name)(w, h)

@@ -23,15 +23,24 @@ def update_boundary(field, is_velocity):
 
 def compute_divergence(field):
     divergence = np.zeros(field.shape[:2])
-    divergence[   :, 1:-1] += field[:, 2:, 0] - field[:, :-2, 0]
-    divergence[1:-1,    :] += field[2:, :, 1] - field[:-2, :, 1]
+    divergence[1:-1, 1:-1] = -0.5 * \
+        (field[1:-1, 2:,   0] - field[1:-1,  :-2, 0] \
+       + field[2:,   1:-1, 1] - field[ :-2, 1:-1, 1])
     update_boundary(divergence, False)
     return divergence
 
+def compute_curl(field):
+    curl = np.zeros(field.shape[:2])
+    curl[1:-1, 1:-1] = 0.5 * \
+        (field[1:-1, 2:,   1] - field[1:-1,  :-2, 1] \
+       - field[2:,   1:-1, 0] + field[ :-2, 1:-1, 0])
+    update_boundary(curl, False)
+    return curl
+
 def compute_gradient(field):
     gradient = np.zeros(field.shape + (2,))
-    gradient[   :, 1:-1, 0] = (field[:, 2:] - field[:, :-2]) * 0.5
-    gradient[1:-1,    :, 1] = (field[2:, :] - field[:-2, :]) * 0.5
+    gradient[1:-1, 1:-1, 0] = (field[1:-1, 2:  ] - field[1:-1,  :-2]) * 0.5
+    gradient[1:-1, 1:-1, 1] = (field[2:,   1:-1] - field[ :-2, 1:-1]) * 0.5
     return gradient
 
 def lin_solve(soln, field_prev, a, b, is_velocity, iters):
@@ -65,3 +74,7 @@ def plot_flow(flow, step=30, out_path=None):
     else:
         plt.show()
     plt.clf()
+
+def grayscale(im):
+    # Rec. 709 luma coefficients
+    return 0.2126 * im[:, :, 0] + 0.7152 * im[:, :, 1] + 0.0722 * im[:, :, 2]
