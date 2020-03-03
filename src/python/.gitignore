@@ -1,0 +1,7 @@
+__pycache__
+*.npy
+*.pyc
+*.mov
+*.png
+images2video.py
+result/

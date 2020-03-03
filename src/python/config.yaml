@@ -1,0 +1,19 @@
+width:     400
+height:    400
+num_steps: 100
+
+init_s: init_s_fixed.npy
+init_v: init_v_circular.npy
+
+# Update parameters
+solver_iters: 5
+delta_t:      0.01
+viscosity_k:  0
+diffusion_k:  0
+dissipation:  0.1
+
+# Render parameters
+color_r:    0.0
+color_g:    0.82
+color_b:    1.0
+out_folder: result
