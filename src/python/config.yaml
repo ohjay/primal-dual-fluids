@@ -2,6 +2,10 @@ width:     400
 height:    400
 num_steps: 100
 
+# ~5x faster but worse
+fast_advect: True
+
+# Initialization
 init_s: pic.png
 init_v: init_v_circular.npy
 

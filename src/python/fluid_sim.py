@@ -3,6 +3,7 @@ import imageio
 import numpy as np
 from scipy import sparse
 from skimage.transform import warp
+from scipy.ndimage import map_coordinates
 
 import utils
 
@@ -17,6 +18,7 @@ class FluidSim(object):
         self.diffusion_k  = config['diffusion_k']
         self.dissipation  = config['dissipation']
         self.solver_iters = config['solver_iters']
+        self.fast_advect  = config['fast_advect']
 
         self.out_folder   = config['out_folder']
         if not os.path.exists(self.out_folder):
@@ -25,6 +27,11 @@ class FluidSim(object):
         color_keys = ('color_r', 'color_g', 'color_b')
         self.color = [config[k] for k in color_keys]
         self.color = np.array(self.color)[np.newaxis, np.newaxis, :]
+
+        # For warping
+        if self.fast_advect:
+            xx, yy = np.meshgrid(np.arange(self.w), np.arange(self.h))
+            self.base_coords = np.stack((xx, yy), axis=-1)  # (h, w, 2)
 
         # Initialize scalar field
         init_s = config.get('init_s', None)
@@ -59,9 +66,11 @@ class FluidSim(object):
 
     def update(self):
         self.update_velocity_boundary()
+        self.diffuse_scalar()
+        self.diffuse_velocity()
+        self.dissipate()
         self.project()
-        self.advect()
-        self.convect()
+        self.advect_and_convect()
 
         self.frame_no += 1
 
@@ -86,14 +95,18 @@ class FluidSim(object):
     # Advection, diffusion, projection, dissipation
     # =============================================
     
-    def advect(self):
-        inv_flow_dict = {'inverse_flow': -self.dt * self.v}
-        self.s = warp(self.s, utils.inverse_map, inv_flow_dict, order=5)
+    def advect_and_convect(self):
+        if self.fast_advect:
+            coords = self.base_coords - self.dt * self.v
+            coords = coords[:, :, ::-1].transpose(2, 0, 1)
+            self.s = map_coordinates(self.s, coords, order=5)
+            self.v[:,:,0] = map_coordinates(self.v[:,:,0], coords, order=5)
+            self.v[:,:,1] = map_coordinates(self.v[:,:,1], coords, order=5)
+        else:
+            inv_flow_dict = {'inverse_flow': -self.dt * self.v}
+            self.s = warp(self.s, utils.inverse_map, inv_flow_dict, order=5)
+            self.v = warp(self.v, utils.inverse_map, inv_flow_dict, order=5)
         self.update_scalar_boundary()
-
-    def convect(self):
-        inv_flow_dict = {'inverse_flow': -self.dt * self.v}
-        self.v = warp(self.v, utils.inverse_map, inv_flow_dict, order=5)
         self.update_velocity_boundary()
 
     def diffuse_scalar(self):
@@ -113,19 +126,3 @@ class FluidSim(object):
 
     def dissipate(self):
         self.s /= self.dt * self.dissipation + 1
-
-    def confine_vorticity(self):
-        w = utils.compute_curl(self.v)
-        abs_w = np.abs(w)
-        utils.update_boundary(abs_w, False)
-
-        grad_abs_w = utils.compute_gradient(abs_w)
-        grad_abs_w /= np.linalg.norm(grad_abs_w, axis=-1, keepdims=True) + 1e-5
-
-        fx_conf = grad_abs_w[:, :, 1] * -w
-        fy_conf = grad_abs_w[:, :, 0] *  w
-        utils.update_boundary(fx_conf, False)
-        utils.update_boundary(fy_conf, False)
-
-        self.v += np.stack((fx_conf, fy_conf), -1) * self.dt
-        self.update_velocity_boundary()
