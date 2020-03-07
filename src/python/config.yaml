@@ -2,7 +2,7 @@ width:     400
 height:    400
 num_steps: 100
 
-# ~5x faster but worse
+# Faster but worse
 fast_advect: True
 
 # Initialization

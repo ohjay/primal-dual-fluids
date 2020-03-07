@@ -33,18 +33,19 @@ class FluidSim(object):
             xx, yy = np.meshgrid(np.arange(self.w), np.arange(self.h))
             self.base_coords = np.stack((xx, yy), axis=-1)  # (h, w, 2)
 
-        # Initialize scalar field
+        # Initialize scalar field(s)
         init_s = config.get('init_s', None)
         if os.path.exists(init_s):
             if init_s.endswith('npy'):
                 self.s = np.load(init_s)
+                while len(self.s.shape) < 3:
+                    self.s = np.expand_dims(self.s, -1)
             else:
                 self.s = imageio.imread(init_s) / 255.0
-                if len(self.s.shape) > 2:
-                    self.s = utils.grayscale(self.s)
             print('Loaded scalar field from `%s`.' % init_s)
         else:
-            self.s = np.zeros((self.h, self.w))
+            self.s = np.zeros((self.h, self.w, 1))
+        self.ns = self.s.shape[-1]
 
         # Initialize velocity field
         init_v = config.get('init_v', None)
@@ -75,7 +76,9 @@ class FluidSim(object):
         self.frame_no += 1
 
     def render(self):
-        frame = self.s[:, :, np.newaxis] * self.color
+        frame = self.s
+        if self.ns == 1:
+            frame = self.s * self.color
         out_name = 'frame%s.png' % str(self.frame_no).zfill(4)
         out_path = os.path.join(self.out_folder, out_name)
         imageio.imwrite(out_path, (frame * 255).astype(np.uint8))
@@ -86,7 +89,8 @@ class FluidSim(object):
     # =================
 
     def update_scalar_boundary(self):
-        utils.update_boundary(self.s, False)
+        for i in range(self.ns):
+            utils.update_boundary(self.s[:, :, i], False)
     
     def update_velocity_boundary(self):
         utils.update_boundary(self.v, True)
@@ -99,7 +103,8 @@ class FluidSim(object):
         if self.fast_advect:
             coords = self.base_coords - self.dt * self.v
             coords = coords[:, :, ::-1].transpose(2, 0, 1)
-            self.s = map_coordinates(self.s, coords, order=5)
+            for i in range(self.ns):
+                self.s[:, :, i] = map_coordinates(self.s[:, :, i], coords, order=5)
             self.v[:,:,0] = map_coordinates(self.v[:,:,0], coords, order=5)
             self.v[:,:,1] = map_coordinates(self.v[:,:,1], coords, order=5)
         else:
@@ -111,11 +116,14 @@ class FluidSim(object):
 
     def diffuse_scalar(self):
         a = self.dt * self.diffusion_k * self.w * self.h
-        utils.lin_solve(self.s, self.s, a, 1 + 4 * a, False, self.solver_iters)
+        for i in range(self.ns):
+            utils.lin_solve(self.s[:, :, i], self.s[:, :, i],
+                            a, 1 + 4 * a, False, self.solver_iters)
 
     def diffuse_velocity(self):
         a = self.dt * self.viscosity_k * self.w * self.h
-        utils.lin_solve(self.v, self.v, a, 1 + 4 * a, True, self.solver_iters)
+        utils.lin_solve(self.v, self.v,
+                        a, 1 + 4 * a, True, self.solver_iters)
 
     def project(self):
         divergence = utils.compute_divergence(self.v)
