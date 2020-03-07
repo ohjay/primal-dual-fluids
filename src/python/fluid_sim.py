@@ -28,11 +28,6 @@ class FluidSim(object):
         self.color = [config[k] for k in color_keys]
         self.color = np.array(self.color)[np.newaxis, np.newaxis, :]
 
-        # For warping
-        if self.fast_advect:
-            xx, yy = np.meshgrid(np.arange(self.w), np.arange(self.h))
-            self.base_coords = np.stack((xx, yy), axis=-1)  # (h, w, 2)
-
         # Initialize scalar field(s)
         init_s = config.get('init_s', None)
         if os.path.exists(init_s):
@@ -45,7 +40,7 @@ class FluidSim(object):
             print('Loaded scalar field from `%s`.' % init_s)
         else:
             self.s = np.zeros((self.h, self.w, 1))
-        self.ns = self.s.shape[-1]
+        self.ns = self.s.shape[-1]  # number of scalar fields
 
         # Initialize velocity field
         init_v = config.get('init_v', None)
@@ -54,6 +49,11 @@ class FluidSim(object):
             print('Loaded velocity field from `%s`.' % init_v)
         else:
             self.v = np.zeros((self.h, self.w, 2))  # order: (vx, vy)
+
+        # For warping
+        if self.fast_advect:
+            xx, yy = np.meshgrid(np.arange(self.w), np.arange(self.h))
+            self.base_coords = np.stack((xx, yy), axis=-1)  # (h, w, 2)
 
         # Ref: Philip Zucker (https://bit.ly/2Tx2LuE)
         def lapl(N):
