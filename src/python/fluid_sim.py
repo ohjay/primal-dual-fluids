@@ -58,8 +58,11 @@ class FluidSim(object):
         self.frame_no = 0
 
     def update(self):
-        self.update_scalar()
-        self.update_velocity()
+        self.update_velocity_boundary()
+        self.project()
+        self.advect()
+        self.convect()
+
         self.frame_no += 1
 
     def render(self):
@@ -68,18 +71,6 @@ class FluidSim(object):
         out_path = os.path.join(self.out_folder, out_name)
         imageio.imwrite(out_path, (frame * 255).astype(np.uint8))
         print('Wrote frame %d to `%s`.' % (self.frame_no, out_path))
-
-    def update_scalar(self):
-        self.advect()
-        self.diffuse_scalar()
-        self.dissipate()
-
-    def update_velocity(self):
-        self.update_velocity_boundary()
-        self.confine_vorticity()
-        self.diffuse_velocity()
-        self.project()
-        self.convect()
 
     # =================
     # Boundary handling
@@ -97,12 +88,12 @@ class FluidSim(object):
     
     def advect(self):
         inv_flow_dict = {'inverse_flow': -self.dt * self.v}
-        self.s = warp(self.s, utils.inverse_map, inv_flow_dict)
+        self.s = warp(self.s, utils.inverse_map, inv_flow_dict, order=5)
         self.update_scalar_boundary()
 
     def convect(self):
         inv_flow_dict = {'inverse_flow': -self.dt * self.v}
-        self.v = warp(self.v, utils.inverse_map, inv_flow_dict)
+        self.v = warp(self.v, utils.inverse_map, inv_flow_dict, order=5)
         self.update_velocity_boundary()
 
     def diffuse_scalar(self):

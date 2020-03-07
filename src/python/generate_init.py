@@ -49,6 +49,13 @@ def v_straight(w, h):
     np.save(out_path, flow_field)
     print('Wrote `%s`.' % out_path)
 
+def v_constant(w, h):
+    flow_field = np.ones((h, w, 2)) * 150.0
+
+    out_path = 'init_v_constant.npy'
+    np.save(out_path, flow_field)
+    print('Wrote `%s`.' % out_path)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('fn_name', type=str)
@@ -64,5 +71,6 @@ if __name__ == '__main__':
         s_fixed(w, h)
         v_circular(w, h)
         v_straight(w, h)
+        v_constant(w, h)
     else:
         eval(args.fn_name)(w, h)
