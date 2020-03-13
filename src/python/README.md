@@ -1,4 +1,4 @@
 ### Usage
 ```
-python main.py config.yaml
+python3 main.py config.yaml
 ```

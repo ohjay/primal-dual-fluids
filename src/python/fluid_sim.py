@@ -23,6 +23,11 @@ class FluidSim(object):
         self.out_folder   = config['out_folder']
         if not os.path.exists(self.out_folder):
             os.makedirs(self.out_folder)
+
+        self.write_vel      = config['write_vel']
+        self.out_vel_folder = os.path.join(self.out_folder, 'vel')
+        if self.write_vel and not os.path.exists(self.out_vel_folder):
+            os.makedirs(self.out_vel_folder)
         
         color_keys = ('color_r', 'color_g', 'color_b')
         self.color = [config[k] for k in color_keys]
@@ -83,6 +88,11 @@ class FluidSim(object):
         out_path = os.path.join(self.out_folder, out_name)
         imageio.imwrite(out_path, (frame * 255).astype(np.uint8))
         print('Wrote frame %d to `%s`.' % (self.frame_no, out_path))
+
+        if self.write_vel:
+            out_vel_name = 'vel%s.npy' % str(self.frame_no).zfill(4)
+            out_vel_path = os.path.join(self.out_vel_folder, out_vel_name)
+            np.save(out_vel_path, self.v)
 
     # =================
     # Boundary handling
