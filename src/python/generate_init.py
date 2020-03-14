@@ -71,6 +71,7 @@ def v_constant(w, h):
 
 def v_star(w, h):
     center = np.array([w // 2.0, h // 2.0])
+    binormal = np.array([0.0, 0.0, 1.0])
     flow_field = np.zeros((h, w, 2))
 
     # star points
@@ -84,14 +85,25 @@ def v_star(w, h):
     x5 = center + np.array([-cos(18), -sin(18)]) * point_radius
 
     # joining lines
-    def fill_segment(start, end):
+    def fill_segment(start, end, width=30):
+        # compute direction
         direction = end - start
         dist = np.linalg.norm(direction)
         direction /= dist
+
+        # compute normal
+        direction3d = np.pad(direction, (0, 1), 'constant')
+        normal = np.cross(binormal, direction3d)[:2]
+        normal /= np.linalg.norm(normal)
+
+        # fill flow field for segment
         for t in np.arange(0, dist, 0.25):
             x = start + direction * t
-            x = np.round(x).astype(np.int)
-            flow_field[x[1], x[0]] = direction * 150.0
+            for u in np.arange(-width / 2, width / 2, 0.25):
+                xs = x + normal * u
+                xs = np.round(xs).astype(np.int)
+                if (xs >= 0).all() and xs[0] < w and xs[1] < h:
+                    flow_field[xs[1], xs[0]] = direction * 150.0
 
     fill_segment(x1, x3)
     fill_segment(x3, x5)
