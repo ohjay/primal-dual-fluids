@@ -7,7 +7,7 @@ fast_advect: False
 
 # Initialization
 init_s: pic.png
-init_v: init_v_circular.npy
+init_v: init_v_star.npy
 
 # Update parameters
 solver_iters: 20

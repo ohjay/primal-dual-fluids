@@ -8,14 +8,34 @@ import utils
 Usage: python generate_init.py [fn_name]
 """
 
+# =====
+# Utils
+# =====
+
+def cos(deg):
+    return np.cos(np.radians(deg))
+
+def sin(deg):
+    return np.sin(np.radians(deg))
+
+def write_field(out_path, field):
+    np.save(out_path, field)
+    print('Wrote `%s`.' % out_path)
+
+# ======
+# Scalar
+# ======
+
 def s_fixed(w, h):
     s = np.zeros((h, w))
     base_y = h // 2
     base_x = w // 2
     s[base_y-10:base_y+10, base_x-10:base_x+10] = 0.5
-    out_path = 'init_s_fixed.npy'
-    np.save(out_path, s)
-    print('Wrote `%s`.' % out_path)
+    write_field('init_s_fixed.npy', s)
+
+# ========
+# Velocity
+# ========
 
 def v_circular(w, h):
     center = np.array([w // 2.0, h // 2.0, 0.0])
@@ -36,25 +56,50 @@ def v_circular(w, h):
     flow_field = tangent[:, :, :2] * 150.0
     
     utils.plot_flow(flow_field, out_path='init_v_circular_viz.png')
-    out_path = 'init_v_circular.npy'
-    np.save(out_path, flow_field)
-    print('Wrote `%s`.' % out_path)
+    write_field('init_v_circular.npy', flow_field)
 
 def v_straight(w, h):
     base_y = h // 2
     flow_field = np.zeros((h, w, 2))
     flow_field[base_y-15:base_y+15, :, 0] = 150.0
 
-    out_path = 'init_v_straight.npy'
-    np.save(out_path, flow_field)
-    print('Wrote `%s`.' % out_path)
+    write_field('init_v_straight.npy', flow_field)
 
 def v_constant(w, h):
     flow_field = np.ones((h, w, 2)) * 150.0
+    write_field('init_v_constant.npy', flow_field)
 
-    out_path = 'init_v_constant.npy'
-    np.save(out_path, flow_field)
-    print('Wrote `%s`.' % out_path)
+def v_star(w, h):
+    center = np.array([w // 2.0, h // 2.0])
+    flow_field = np.zeros((h, w, 2))
+
+    # star points
+    # clockwise order starting from top point
+    # rotate 72 degrees around center each time
+    point_radius = h / 3.0
+    x1 = center + np.array([0, -point_radius])
+    x2 = center + np.array([ cos(18), -sin(18)]) * point_radius
+    x3 = center + np.array([ cos(54),  sin(54)]) * point_radius
+    x4 = center + np.array([-cos(54),  sin(54)]) * point_radius
+    x5 = center + np.array([-cos(18), -sin(18)]) * point_radius
+
+    # joining lines
+    def fill_segment(start, end):
+        direction = end - start
+        dist = np.linalg.norm(direction)
+        direction /= dist
+        for t in np.arange(0, dist, 0.25):
+            x = start + direction * t
+            x = np.round(x).astype(np.int)
+            flow_field[x[1], x[0]] = direction * 150.0
+
+    fill_segment(x1, x3)
+    fill_segment(x3, x5)
+    fill_segment(x5, x2)
+    fill_segment(x2, x4)
+    fill_segment(x4, x1)
+
+    write_field('init_v_star.npy', flow_field)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -72,5 +117,6 @@ if __name__ == '__main__':
         v_circular(w, h)
         v_straight(w, h)
         v_constant(w, h)
+        v_star(w, h)
     else:
         eval(args.fn_name)(w, h)
