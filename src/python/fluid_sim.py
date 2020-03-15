@@ -3,7 +3,6 @@ import imageio
 import numpy as np
 from scipy import sparse
 from skimage.transform import warp
-from scipy.ndimage import map_coordinates
 
 import utils
 
@@ -114,9 +113,9 @@ class FluidSim(object):
             coords = self.base_coords - self.dt * self.v
             coords = coords[:, :, ::-1].transpose(2, 0, 1)
             for i in range(self.ns):
-                self.s[:, :, i] = map_coordinates(self.s[:, :, i], coords, order=5)
-            self.v[:,:,0] = map_coordinates(self.v[:,:,0], coords, order=5)
-            self.v[:,:,1] = map_coordinates(self.v[:,:,1], coords, order=5)
+                self.s[:, :, i] = utils.map_coordinates_clipped(self.s[:, :, i], coords)
+            self.v[:,:,0] = utils.map_coordinates_clipped(self.v[:,:,0], coords)
+            self.v[:,:,1] = utils.map_coordinates_clipped(self.v[:,:,1], coords)
         else:
             inv_flow_dict = {'inverse_flow': -self.dt * self.v}
             self.s = warp(self.s, utils.inverse_map, inv_flow_dict, order=5)

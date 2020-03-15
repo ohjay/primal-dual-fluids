@@ -33,6 +33,50 @@ def s_fixed(w, h):
     s[base_y-10:base_y+10, base_x-10:base_x+10] = 0.5
     write_field('init_s_fixed.npy', s)
 
+def s_star(w, h):
+    center = np.array([w // 2.0, h // 2.0])
+    binormal = np.array([0.0, 0.0, 1.0])
+    s = np.zeros((h, w))
+
+    # star points
+    # clockwise order starting from top point
+    # rotate 72 degrees around center each time
+    point_radius = 7.0 * h / 16.0
+    x1 = center + np.array([0, -point_radius])
+    x2 = center + np.array([ cos(18), -sin(18)]) * point_radius
+    x3 = center + np.array([ cos(54),  sin(54)]) * point_radius
+    x4 = center + np.array([-cos(54),  sin(54)]) * point_radius
+    x5 = center + np.array([-cos(18), -sin(18)]) * point_radius
+
+    # joining lines
+    def fill_segment(start, end, width=30):
+        # compute direction
+        direction = end - start
+        dist = np.linalg.norm(direction)
+        direction /= dist
+
+        # compute normal
+        direction3d = np.pad(direction, (0, 1), 'constant')
+        normal = np.cross(binormal, direction3d)[:2]
+        normal /= np.linalg.norm(normal)
+
+        # fill flow field for segment
+        for t in np.arange(0, dist, 0.25):
+            x = start + direction * t
+            for u in np.arange(-width / 2, width / 2, 0.25):
+                xs = x + normal * u
+                xs = np.round(xs).astype(np.int)
+                if (xs >= 0).all() and xs[0] < w and xs[1] < h:
+                    s[xs[1], xs[0]] = 1.0
+
+    fill_segment(x1, x3)
+    fill_segment(x3, x5)
+    fill_segment(x5, x2)
+    fill_segment(x2, x4)
+    fill_segment(x4, x1)
+
+    write_field('init_s_star.npy', s)
+
 # ========
 # Velocity
 # ========
@@ -77,7 +121,7 @@ def v_star(w, h):
     # star points
     # clockwise order starting from top point
     # rotate 72 degrees around center each time
-    point_radius = h / 3.0
+    point_radius = 7.0 * h / 16.0
     x1 = center + np.array([0, -point_radius])
     x2 = center + np.array([ cos(18), -sin(18)]) * point_radius
     x3 = center + np.array([ cos(54),  sin(54)]) * point_radius
@@ -125,7 +169,10 @@ if __name__ == '__main__':
     h = args.height
     
     if fn_name == 'all':
+        # s
         s_fixed(w, h)
+        s_star(w, h)
+        # v
         v_circular(w, h)
         v_straight(w, h)
         v_constant(w, h)

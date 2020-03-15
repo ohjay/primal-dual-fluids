@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.ndimage import map_coordinates
 
 # Multipliers for negating velocity components
 REV_X = np.array([-1, 1])[np.newaxis, np.newaxis, :]
@@ -56,6 +57,11 @@ def inverse_map(xy, inverse_flow):
     # Output: (M, 2) array of transformed (x, y) coordinates
     inverse_flow = inverse_flow.transpose(1, 0, 2).reshape(-1, 2)
     return xy + inverse_flow
+
+def map_coordinates_clipped(field, coords):
+    minval, maxval = field.min(), field.max()
+    warped = map_coordinates(field, coords, order=5)
+    return np.clip(warped, minval, maxval)
 
 def plot_flow(flow, step=30, out_path=None):
     h, w = flow.shape[:2]
