@@ -3,7 +3,6 @@ __pycache__
 *.pyc
 *.mov
 *.png
-images2video.py
 result/
 pic_anim/
 zscript.py
