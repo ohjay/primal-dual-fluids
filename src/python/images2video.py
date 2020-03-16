@@ -7,7 +7,6 @@ import argparse
 import cv2
 import numpy as np
 import functools
-from scipy.misc import imresize
 
 def get_shapes(images_dir, suffixes):
     # Assumption: all images with a given suffix have the same shape.

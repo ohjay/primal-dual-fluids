@@ -16,6 +16,10 @@ viscosity_k:  0
 diffusion_k:  0
 dissipation:  0
 
+# Guiding parameters
+guiding: False
+target_v: init_v_outerstar.npy
+
 # Render parameters
 color_r:    1.0
 color_g:    0.82
@@ -24,6 +28,7 @@ out_folder: result
 write_vel:  True
 write_init: True
 
+# Export parameters
 video_export:
   out_path: out.mov
   fps: 24

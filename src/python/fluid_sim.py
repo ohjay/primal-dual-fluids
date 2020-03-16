@@ -1,6 +1,7 @@
 import os
 import imageio
 import numpy as np
+import cvxpy as cp
 from scipy import sparse
 from skimage.transform import warp
 
@@ -59,6 +60,14 @@ class FluidSim(object):
             xx, yy = np.meshgrid(np.arange(self.w), np.arange(self.h))
             self.base_coords = np.stack((xx, yy), axis=-1)  # (h, w, 2)
 
+        # Set guiding attributes
+        self.target_v = None
+        self.guiding  = config['guiding']
+        target_v_path = config['target_v']
+        if os.path.exists(target_v_path):
+            self.target_v = np.load(target_v_path)
+            print('Loaded target velocity field from `%s`.' % target_v_path)
+
         # Ref: Philip Zucker (https://bit.ly/2Tx2LuE)
         def lapl(N):
             diagonals = np.array([
@@ -76,6 +85,10 @@ class FluidSim(object):
         self.dissipate()
         self.project()
         self.advect_and_convect()
+
+        if self.guiding:
+            self.guide()
+            self.project()
 
         self.frame_no += 1
 
@@ -143,3 +156,22 @@ class FluidSim(object):
 
     def dissipate(self):
         self.s /= self.dt * self.dissipation + 1
+
+    # =======
+    # Guiding
+    # =======
+
+    def guide(self):
+        assert self.target_v is not None
+
+        # [variables] solve for a velocity field
+        v = cp.Variable(self.v.size)
+
+        # [objective]
+        objective_term1 = cp.sum_squares(v - self.v.flatten())
+        objective_term2 = cp.sum_squares(v - self.target_v.flatten())
+        objective = cp.Minimize(objective_term1 + objective_term2)
+        problem = cp.Problem(objective)
+
+        result = problem.solve()
+        self.v = v.value.reshape(self.h, self.w, 2)
