@@ -17,8 +17,16 @@ diffusion_k:  0
 dissipation:  0
 
 # Guiding parameters
-guiding: False
+guiding: True
 target_v: init_v_outerstar.npy
+guiding_alg: pd  # (initial, pd)
+pd_params:
+  tau:       1.0
+  sigma:     1.0
+  theta:     1.0
+  max_iters: 20
+  blur_size: 5
+  guiding_w: 1
 
 # Render parameters
 color_r:    1.0

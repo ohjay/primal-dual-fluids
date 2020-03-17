@@ -3,6 +3,7 @@ import imageio
 import numpy as np
 import cvxpy as cp
 from scipy import sparse
+from scipy.signal import convolve
 from skimage.transform import warp
 
 import utils
@@ -68,6 +69,20 @@ class FluidSim(object):
             self.target_v = np.load(target_v_path)
             print('Loaded target velocity field from `%s`.' % target_v_path)
 
+        self.guiding_alg = config['guiding_alg']
+        self.pd_params = config.get('pd_params', {})
+        self.pd_x, self.pd_y, self.pd_z = None, None, None
+        self.blur_kernel, self.blur = None, None
+        if self.guiding_alg == 'pd':
+            self.pd_params = config['pd_params']
+            self.pd_x = np.zeros_like(self.v)
+            self.pd_y = np.zeros_like(self.v)
+            self.pd_z = np.zeros_like(self.v)
+            gauss = utils.gaussian2d(self.pd_params['blur_size'])
+            self.blur_kernel = 2.0 * gauss @ gauss
+            self.blur_kernel = self.blur_kernel[:, :, np.newaxis]
+            self.blur = lambda field: convolve(field, self.blur_kernel, 'same')
+
         # Ref: Philip Zucker (https://bit.ly/2Tx2LuE)
         def lapl(N):
             diagonals = np.array([
@@ -83,12 +98,11 @@ class FluidSim(object):
         self.diffuse_scalar()
         self.diffuse_velocity()
         self.dissipate()
-        self.project()
-        self.advect_and_convect()
-
         if self.guiding:
             self.guide()
-            self.project()
+        else:
+            self.project_velocity()
+        self.advect_and_convect()
 
         self.frame_no += 1
 
@@ -147,12 +161,8 @@ class FluidSim(object):
         utils.lin_solve(self.v, self.v,
                         a, 1 + 4 * a, True, self.solver_iters)
 
-    def project(self):
-        divergence = utils.compute_divergence(self.v)
-        soln = self.project_solve(divergence.flatten())
-        soln = soln.reshape(self.h, self.w)
-        self.v -= utils.compute_gradient(soln)
-        self.update_velocity_boundary()
+    def project_velocity(self):
+        self.v = utils.project(self.v, self.project_solve)
 
     def dissipate(self):
         self.s /= self.dt * self.dissipation + 1
@@ -164,14 +174,52 @@ class FluidSim(object):
     def guide(self):
         assert self.target_v is not None
 
-        # [variables] solve for a velocity field
-        v = cp.Variable(self.v.size)
+        if self.guiding_alg == 'initial':
+            # [variables] solve for a velocity field
+            v = cp.Variable(self.v.size)
 
-        # [objective]
-        objective_term1 = cp.sum_squares(v - self.v.flatten())
-        objective_term2 = cp.sum_squares(v - self.target_v.flatten())
-        objective = cp.Minimize(objective_term1 + objective_term2)
-        problem = cp.Problem(objective)
+            # [objective]
+            objective_term1 = cp.sum_squares(v - self.v.flatten())
+            objective_term2 = cp.sum_squares(v - self.target_v.flatten())
+            objective = cp.Minimize(objective_term1 + objective_term2)
+            problem = cp.Problem(objective)
 
-        result = problem.solve()
-        self.v = v.value.reshape(self.h, self.w, 2)
+            result = problem.solve()
+            self.v = v.value.reshape(self.h, self.w, 2)
+            self.project_velocity()
+        elif self.guiding_alg == 'pd':
+            # primal-dual optimization step
+            self.v = np.copy(self.pd_optim())
+        else:
+            import sys
+            sys.exit('unrecognized guiding alg: %s' % self.guiding_alg)
+
+    def pd_optim(self):
+        """PD optimization step.
+        Ref: Inglis et al. (https://arxiv.org/pdf/1611.03677.pdf)."""
+        tau       = self.pd_params['tau']
+        sigma     = self.pd_params['sigma']
+        theta     = self.pd_params['theta']
+        w         = self.pd_params['guiding_w']
+        max_iters = self.pd_params['max_iters']
+
+        for k in range(max_iters):
+            prox_f_val = self.prox_f(sigma, (self.pd_x + self.pd_y) / sigma, w)
+            self.pd_x += sigma * (self.pd_y - prox_f_val)
+            pd_z_next = utils.project(self.pd_z - tau * self.pd_x, self.project_solve)
+            delta_pdz = pd_z_next - self.pd_z
+            self.pd_z = pd_z_next
+            self.pd_y = self.pd_z + theta * delta_pdz
+            # termination criterion
+            eps = 1e-3 * (np.sqrt(2) + np.linalg.norm(self.pd_z))
+            if np.linalg.norm(delta_pdz) <= eps:
+                break
+
+        return self.pd_z
+
+    def prox_f(self, sigma, xi, w):
+        """Ref: Inglis et al. (https://arxiv.org/pdf/1611.03677.pdf)."""
+        q = self.blur(self.target_v - self.v) - sigma * self.v
+        gamma = 1.0 / (2.0 * w * w + sigma)
+        sxq = sigma * xi + q
+        return self.v + gamma * sxq - self.blur(gamma * gamma * sxq)

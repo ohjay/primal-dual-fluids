@@ -52,6 +52,14 @@ def lin_solve(soln, field_prev, a, b, is_velocity, iters):
             (field_prev[1:-1, 1:-1] + a * neighbor_sum) / b
         update_boundary(soln, is_velocity)
 
+def project(field, project_solve):
+    divergence = compute_divergence(field)
+    soln = project_solve(divergence.flatten())
+    soln = soln.reshape(*field.shape[:2])
+    field -= compute_gradient(soln)
+    update_boundary(field, True)
+    return field  # this function is also destructive
+
 def inverse_map(xy, inverse_flow):
     # Input: (M, 2) array of (x, y) coordinates
     # Output: (M, 2) array of transformed (x, y) coordinates
@@ -84,3 +92,13 @@ def plot_flow(flow, step=30, out_path=None):
 def grayscale(im):
     # Rec. 709 luma coefficients
     return 0.2126 * im[:, :, 0] + 0.7152 * im[:, :, 1] + 0.0722 * im[:, :, 2]
+
+def gaussian2d(filter_size=5, sig=None):
+    """Creates a 2D Gaussian kernel with side length `filter_size`.
+    Source: https://stackoverflow.com/a/43346070."""
+    if sig is None:
+        sig = float(filter_size) / 6.0
+    ax = np.arange(-filter_size // 2 + 1.0, filter_size // 2 + 1.0)
+    xx, yy = np.meshgrid(ax, ax)
+    kernel = np.exp(-0.5 * (np.square(xx) + np.square(yy)) / np.square(sig))
+    return kernel / np.sum(kernel)

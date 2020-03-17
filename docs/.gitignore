@@ -3,3 +3,10 @@
 *.out
 *.synctex.gz
 *.tex
+*.bib
+*.sty
+*.bbl
+*.bcf
+*.blg
+*.xml
+images/
