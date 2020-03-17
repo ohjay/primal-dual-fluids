@@ -175,24 +175,36 @@ class FluidSim(object):
         assert self.target_v is not None
 
         if self.guiding_alg == 'initial':
-            # [variables] solve for a velocity field
-            v = cp.Variable(self.v.size)
-
-            # [objective]
-            objective_term1 = cp.sum_squares(v - self.v.flatten())
-            objective_term2 = cp.sum_squares(v - self.target_v.flatten())
-            objective = cp.Minimize(objective_term1 + objective_term2)
-            problem = cp.Problem(objective)
-
-            result = problem.solve()
-            self.v = v.value.reshape(self.h, self.w, 2)
-            self.project_velocity()
+            self.v = self.initial_optim()
         elif self.guiding_alg == 'pd':
             # primal-dual optimization step
             self.v = np.copy(self.pd_optim())
         else:
             import sys
             sys.exit('unrecognized guiding alg: %s' % self.guiding_alg)
+
+    # ================
+    # Guiding: initial
+    # ================
+
+    def initial_optim(self):
+        # [variables] solve for a velocity field
+        v = cp.Variable(self.v.size)
+
+        # [objective]
+        objective_term1 = cp.sum_squares(v - self.v.flatten())
+        objective_term2 = cp.sum_squares(v - self.target_v.flatten())
+        objective = cp.Minimize(objective_term1 + objective_term2)
+        problem = cp.Problem(objective)
+
+        # optimize, perform projection
+        result = problem.solve()
+        v_soln = v.value.reshape(self.h, self.w, 2)
+        return utils.project(v_soln, self.project_solve)
+
+    # ====================
+    # Guiding: primal-dual
+    # ====================
 
     def pd_optim(self):
         """PD optimization step.

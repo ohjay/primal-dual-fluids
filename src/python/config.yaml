@@ -26,7 +26,7 @@ pd_params:
   theta:     1.0
   max_iters: 20
   blur_size: 5
-  guiding_w: 1
+  guiding_w: 1.5
 
 # Render parameters
 color_r:    1.0
