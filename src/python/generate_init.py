@@ -26,14 +26,14 @@ def write_field(out_path, field):
 # Scalar
 # ======
 
-def s_fixed(w, h):
+def s_fixed(w, h, **kwargs):
     s = np.zeros((h, w))
     base_y = h // 2
     base_x = w // 2
     s[base_y-10:base_y+10, base_x-10:base_x+10] = 0.5
     write_field('init_s_fixed.npy', s)
 
-def s_star(w, h):
+def s_star(w, h, **kwargs):
     center = np.array([w // 2.0, h // 2.0])
     binormal = np.array([0.0, 0.0, 1.0])
     s = np.zeros((h, w))
@@ -49,7 +49,8 @@ def s_star(w, h):
     x5 = center + np.array([-cos(18), -sin(18)]) * point_radius
 
     # joining lines
-    def fill_segment(start, end, width=30):
+    stroke_width = kwargs.get('stroke_width', 30)
+    def fill_segment(start, end, width=stroke_width):
         # compute direction
         direction = end - start
         dist = np.linalg.norm(direction)
@@ -77,7 +78,7 @@ def s_star(w, h):
 
     write_field('init_s_star.npy', s)
 
-def s_outerstar(w, h):
+def s_outerstar(w, h, **kwargs):
     center = np.array([w // 2.0, h // 2.0])
     binormal = np.array([0.0, 0.0, 1.0])
     s = np.zeros((h, w))
@@ -109,7 +110,8 @@ def s_outerstar(w, h):
     x9 = intersection(x8, x2 - x8, x6, x0 - x6)
 
     # joining lines
-    def fill_segment(start, end, width=30):
+    stroke_width = kwargs.get('stroke_width', 30)
+    def fill_segment(start, end, width=stroke_width):
         # compute direction
         direction = end - start
         dist = np.linalg.norm(direction)
@@ -142,7 +144,7 @@ def s_outerstar(w, h):
 
     write_field('init_s_outerstar.npy', s)
 
-def s_starbit(w, h):
+def s_starbit(w, h, **kwargs):
     center = np.array([w // 2.0, h // 2.0])
     point_radius = 7.0 * h / 16.0
     x, y = (center + np.array([0, -point_radius])).astype(np.int)
@@ -164,7 +166,7 @@ def s_starbit(w, h):
 # Velocity
 # ========
 
-def v_circular(w, h):
+def v_circular(w, h, **kwargs):
     center = np.array([w // 2.0, h // 2.0, 0.0])
     binormal = np.array([0.0, 0.0, 1.0])
     
@@ -185,18 +187,18 @@ def v_circular(w, h):
     utils.plot_flow(flow_field, out_path='init_v_circular_viz.png')
     write_field('init_v_circular.npy', flow_field)
 
-def v_straight(w, h):
+def v_straight(w, h, **kwargs):
     base_y = h // 2
     flow_field = np.zeros((h, w, 2))
     flow_field[base_y-15:base_y+15, :, 0] = 150.0
 
     write_field('init_v_straight.npy', flow_field)
 
-def v_constant(w, h):
+def v_constant(w, h, **kwargs):
     flow_field = np.ones((h, w, 2)) * 150.0
     write_field('init_v_constant.npy', flow_field)
 
-def v_star(w, h):
+def v_star(w, h, **kwargs):
     center = np.array([w // 2.0, h // 2.0])
     binormal = np.array([0.0, 0.0, 1.0])
     flow_field = np.zeros((h, w, 2))
@@ -212,7 +214,8 @@ def v_star(w, h):
     x5 = center + np.array([-cos(18), -sin(18)]) * point_radius
 
     # joining lines
-    def fill_segment(start, end, width=30):
+    stroke_width = kwargs.get('stroke_width', 30)
+    def fill_segment(start, end, width=stroke_width):
         # compute direction
         direction = end - start
         dist = np.linalg.norm(direction)
@@ -240,7 +243,7 @@ def v_star(w, h):
 
     write_field('init_v_star.npy', flow_field)
 
-def v_outerstar(w, h):
+def v_outerstar(w, h, **kwargs):
     center = np.array([w // 2.0, h // 2.0])
     binormal = np.array([0.0, 0.0, 1.0])
     flow_field = np.zeros((h, w, 2))
@@ -272,7 +275,8 @@ def v_outerstar(w, h):
     x9 = intersection(x8, x2 - x8, x6, x0 - x6)
 
     # joining lines
-    def fill_segment(start, end, width=30):
+    stroke_width = kwargs.get('stroke_width', 30)
+    def fill_segment(start, end, width=stroke_width):
         # compute direction
         direction = end - start
         dist = np.linalg.norm(direction)
@@ -310,23 +314,28 @@ if __name__ == '__main__':
     parser.add_argument('fn_name', type=str)
     parser.add_argument('--width', type=int, default=400)
     parser.add_argument('--height', type=int, default=400)
+    parser.add_argument('--stroke_width', '-sw', type=float)
     args = parser.parse_args()
 
     fn_name = args.fn_name
     w = args.width
     h = args.height
-    
+
+    kwargs = {}
+    if args.stroke_width:
+        kwargs['stroke_width'] = args.stroke_width
+
     if fn_name == 'all':
         # s
-        s_fixed(w, h)
-        s_star(w, h)
-        s_outerstar(w, h)
-        s_starbit(w, h)
+        s_fixed    (w, h, **kwargs)
+        s_star     (w, h, **kwargs)
+        s_outerstar(w, h, **kwargs)
+        s_starbit  (w, h, **kwargs)
         # v
-        v_circular(w, h)
-        v_straight(w, h)
-        v_constant(w, h)
-        v_star(w, h)
-        v_outerstar(w, h)
+        v_circular (w, h, **kwargs)
+        v_straight (w, h, **kwargs)
+        v_constant (w, h, **kwargs)
+        v_star     (w, h, **kwargs)
+        v_outerstar(w, h, **kwargs)
     else:
-        eval(args.fn_name)(w, h)
+        eval(args.fn_name)(w, h, **kwargs)
