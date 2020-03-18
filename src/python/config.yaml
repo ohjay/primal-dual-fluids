@@ -15,7 +15,7 @@ delta_t:      0.05
 viscosity_k:  0
 diffusion_k:  0
 dissipation:  0
-vorticity:    0
+vorticity:    0.01
 
 # Guiding parameters
 guiding: True

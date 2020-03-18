@@ -142,6 +142,24 @@ def s_outerstar(w, h):
 
     write_field('init_s_outerstar.npy', s)
 
+def s_starbit(w, h):
+    center = np.array([w // 2.0, h // 2.0])
+    point_radius = 7.0 * h / 16.0
+    x, y = (center + np.array([0, -point_radius])).astype(np.int)
+
+    margin_u, margin_d = y, h - y - 1
+    margin_l, margin_r = x, w - x - 1
+    margin = min(30, margin_u, margin_d, margin_l, margin_r)
+    filter_size = margin * 2 + 1
+    stdev = float(filter_size) / 6 - 1
+
+    s = np.zeros((h, w))
+    g_kernel = utils.gaussian2d(filter_size, sig=stdev)
+    g_kernel = np.clip(g_kernel / g_kernel.mean(), 0, 1)
+    s[y-margin:y+margin+1, x-margin:x+margin+1] = g_kernel
+
+    write_field('init_s_starbit.npy', s)
+
 # ========
 # Velocity
 # ========
@@ -303,6 +321,7 @@ if __name__ == '__main__':
         s_fixed(w, h)
         s_star(w, h)
         s_outerstar(w, h)
+        s_starbit(w, h)
         # v
         v_circular(w, h)
         v_straight(w, h)
