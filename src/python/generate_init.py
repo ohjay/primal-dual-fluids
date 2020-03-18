@@ -151,7 +151,7 @@ def s_starbit(w, h, **kwargs):
 
     margin_u, margin_d = y, h - y - 1
     margin_l, margin_r = x, w - x - 1
-    margin = min(30, margin_u, margin_d, margin_l, margin_r)
+    margin = min(24, margin_u, margin_d, margin_l, margin_r)
     filter_size = margin * 2 + 1
     stdev = float(filter_size) / 6 - 1
 
@@ -161,6 +161,57 @@ def s_starbit(w, h, **kwargs):
     s[y-margin:y+margin+1, x-margin:x+margin+1] = g_kernel
 
     write_field('init_s_starbit.npy', s)
+
+def s_starpoint(w, h, **kwargs):
+    s = np.zeros((h, w))
+    center = np.array([w // 2.0, h // 2.0])
+    point_radius = 7.0 * h / 16.0
+
+    x0 = center + np.array([0, -point_radius])
+    x2 = center + np.array([ cos(18), -sin(18)]) * point_radius
+    x4 = center + np.array([ cos(54),  sin(54)]) * point_radius
+    x6 = center + np.array([-cos(54),  sin(54)]) * point_radius
+    x8 = center + np.array([-cos(18), -sin(18)]) * point_radius
+
+    def intersection(o1, d1, o2, d2):
+        """Compute the intersection of rays,
+        assuming that the rays DO intersect."""
+        o_diff = o2 - o1
+        denom = d1[0] * d2[1] - d2[0] * d1[1]
+        assert denom != 0
+        t1 = (d2[1] * o_diff[0] - d2[0] * o_diff[1]) / denom
+        return o1 + t1 * d1
+
+    x1 = intersection(x0, x4 - x0, x8, x2 - x8)
+    x3 = intersection(x2, x6 - x2, x0, x4 - x0)
+    x5 = intersection(x4, x8 - x4, x2, x6 - x2)
+    x7 = intersection(x6, x0 - x6, x4, x8 - x4)
+    x9 = intersection(x8, x2 - x8, x6, x0 - x6)
+
+    def fill_point(x, y):
+        x, y = int(x), int(y)
+        margin_u, margin_d = y, h - y - 1
+        margin_l, margin_r = x, w - x - 1
+        margin = min(24, margin_u, margin_d, margin_l, margin_r)
+        filter_size = margin * 2 + 1
+        stdev = float(filter_size) / 6 - 1
+
+        g_kernel = utils.gaussian2d(filter_size, sig=stdev)
+        g_kernel = np.clip(g_kernel / g_kernel.mean(), 0, 1)
+        s[y-margin:y+margin+1, x-margin:x+margin+1] = g_kernel
+
+    fill_point(*x0)
+    fill_point(*x1)
+    fill_point(*x2)
+    fill_point(*x3)
+    fill_point(*x4)
+    fill_point(*x5)
+    fill_point(*x6)
+    fill_point(*x7)
+    fill_point(*x8)
+    fill_point(*x9)
+
+    write_field('init_s_starpoint.npy', s)
 
 # ========
 # Velocity
@@ -331,6 +382,7 @@ if __name__ == '__main__':
         s_star     (w, h, **kwargs)
         s_outerstar(w, h, **kwargs)
         s_starbit  (w, h, **kwargs)
+        s_starpoint(w, h, **kwargs)
         # v
         v_circular (w, h, **kwargs)
         v_straight (w, h, **kwargs)
