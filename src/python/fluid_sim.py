@@ -95,11 +95,13 @@ class FluidSim(object):
         self.frame_no = 0
 
     def update(self):
+        if self.guiding and self.guiding_alg == 'assign':
+            self.v = np.copy(self.target_v)
         self.update_velocity_boundary()
         self.diffuse_scalar()
         self.diffuse_velocity()
         self.dissipate()
-        if self.guiding:
+        if self.guiding and self.guiding_alg != 'assign':
             self.guide()
         else:
             self.project_velocity()

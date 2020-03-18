@@ -6,7 +6,7 @@ num_steps: 100
 fast_advect: True
 
 # Initialization
-init_s: init_s_outerstar.npy
+init_s: init_s_starpoint.npy
 init_v: init_v_outerstar.npy
 
 # Update parameters
@@ -20,7 +20,7 @@ vorticity:    0.01
 # Guiding parameters
 guiding: True
 target_v: init_v_outerstar.npy
-guiding_alg: pd  # (initial, pd)
+guiding_alg: pd  # (initial, assign, pd)
 pd_params:
   tau:       0.4
   sigma:     1.1
