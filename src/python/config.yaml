@@ -15,15 +15,16 @@ delta_t:      0.05
 viscosity_k:  0
 diffusion_k:  0
 dissipation:  0
+vorticity:    0
 
 # Guiding parameters
 guiding: True
 target_v: init_v_outerstar.npy
 guiding_alg: pd  # (initial, pd)
 pd_params:
-  tau:       1.0
-  sigma:     1.0
-  theta:     1.0
+  tau:       0.4
+  sigma:     1.1
+  theta:     0.3
   max_iters: 20
   blur_size: 5
   guiding_w: 1.5

@@ -32,9 +32,8 @@ def compute_divergence(field):
 
 def compute_curl(field):
     curl = np.zeros(field.shape[:2])
-    curl[1:-1, 1:-1] = 0.5 * \
-        (field[1:-1, 2:,   1] - field[1:-1,  :-2, 1] \
-       - field[2:,   1:-1, 0] + field[ :-2, 1:-1, 0])
+    curl[1:-1, 1:-1] = field[2:,   1:-1, 0] - field[ :-2, 1:-1, 0] \
+                     - field[1:-1, 2:,   1] + field[1:-1,  :-2, 1]
     update_boundary(curl, False)
     return curl
 

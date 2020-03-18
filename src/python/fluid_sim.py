@@ -18,6 +18,7 @@ class FluidSim(object):
         self.viscosity_k  = config['viscosity_k']
         self.diffusion_k  = config['diffusion_k']
         self.dissipation  = config['dissipation']
+        self.vorticity    = config['vorticity']
         self.solver_iters = config['solver_iters']
         self.fast_advect  = config['fast_advect']
 
@@ -103,6 +104,7 @@ class FluidSim(object):
         else:
             self.project_velocity()
         self.advect_and_convect()
+        self.confine_vorticity()
 
         self.frame_no += 1
 
@@ -131,10 +133,10 @@ class FluidSim(object):
     def update_velocity_boundary(self):
         utils.update_boundary(self.v, True)
 
-    # =============================================
-    # Advection, diffusion, projection, dissipation
-    # =============================================
-    
+    # ==========================================================
+    # Advection, projection, diffusion, dissipation, confinement
+    # ==========================================================
+
     def advect_and_convect(self):
         if self.fast_advect:
             coords = self.base_coords - self.dt * self.v
@@ -150,22 +152,34 @@ class FluidSim(object):
         self.update_scalar_boundary()
         self.update_velocity_boundary()
 
-    def diffuse_scalar(self):
-        a = self.dt * self.diffusion_k * self.w * self.h
-        for i in range(self.ns):
-            utils.lin_solve(self.s[:, :, i], self.s[:, :, i],
-                            a, 1 + 4 * a, False, self.solver_iters)
-
-    def diffuse_velocity(self):
-        a = self.dt * self.viscosity_k * self.w * self.h
-        utils.lin_solve(self.v, self.v,
-                        a, 1 + 4 * a, True, self.solver_iters)
-
     def project_velocity(self):
         self.v = utils.project(self.v, self.project_solve)
 
+    def diffuse_scalar(self):
+        if self.diffusion_k != 0:
+            a = self.dt * self.diffusion_k * self.w * self.h
+            for i in range(self.ns):
+                utils.lin_solve(self.s[:, :, i], self.s[:, :, i],
+                                a, 1 + 4 * a, False, self.solver_iters)
+
+    def diffuse_velocity(self):
+        if self.viscosity_k != 0:
+            a = self.dt * self.viscosity_k * self.w * self.h
+            utils.lin_solve(self.v, self.v,
+                            a, 1 + 4 * a, True, self.solver_iters)
+
     def dissipate(self):
-        self.s /= self.dt * self.dissipation + 1
+        if self.dissipation != 0:
+            self.s /= self.dt * self.dissipation + 1
+
+    def confine_vorticity(self):
+        if self.vorticity != 0:
+            w = utils.compute_curl(self.v)
+            grad_abs_w = 2 * utils.compute_gradient(np.abs(w))
+            grad_abs_w /= np.linalg.norm(grad_abs_w, axis=-1, keepdims=True) + 1e-5
+
+            f_conf = self.dt * self.vorticity * w[:, :, np.newaxis] * grad_abs_w
+            self.v[2:-2, 2:-2] += f_conf[2:-2, 2:-2]
 
     # =======
     # Guiding
