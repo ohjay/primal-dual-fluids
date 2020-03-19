@@ -29,8 +29,8 @@ pd_params:
   max_iters: 20
   guiding_w: 1.5
 lsqr_params:
-  current_w: 0.5
-  target_w:  0.5
+  current_w: 0.9
+  target_w:  0.1
 
 # Render parameters
 color_r:    1.0
