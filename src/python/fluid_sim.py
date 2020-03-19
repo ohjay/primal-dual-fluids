@@ -1,4 +1,5 @@
 import os
+import time
 import imageio
 import numpy as np
 import cvxpy as cp
@@ -70,19 +71,35 @@ class FluidSim(object):
             self.target_v = np.load(target_v_path)
             print('Loaded target velocity field from `%s`.' % target_v_path)
 
+        gauss = utils.gaussian2d(self.config['blur_size'])
+        self.blur_kernel = 2.0 * gauss @ gauss
+        self.blur_kernel = self.blur_kernel[:, :, np.newaxis]
+        self.blur = lambda field: convolve(field, self.blur_kernel, 'same')
+
+        # Algorithm-specific guiding setup
         self.guiding_alg = config['guiding_alg']
         self.pd_params = config.get('pd_params', {})
         self.pd_x, self.pd_y, self.pd_z = None, None, None
-        self.blur_kernel, self.blur = None, None
+        self.cw, self.tw, self.lsqr_A = None, None, None
         if self.guiding_alg == 'pd':
             self.pd_params = config['pd_params']
             self.pd_x = np.zeros_like(self.v)
             self.pd_y = np.zeros_like(self.v)
             self.pd_z = np.zeros_like(self.v)
-            gauss = utils.gaussian2d(self.pd_params['blur_size'])
-            self.blur_kernel = 2.0 * gauss @ gauss
-            self.blur_kernel = self.blur_kernel[:, :, np.newaxis]
-            self.blur = lambda field: convolve(field, self.blur_kernel, 'same')
+        elif self.guiding_alg == 'lsqr':
+            # current/target weights
+            lsqr_params = config.get('lsqr_params', {})
+            self.cw = lsqr_params.get('current_w', 0.5)
+            self.tw = lsqr_params.get('target_w',  0.5)
+            weight_sum = self.cw + self.tw
+            self.cw = float(self.cw) / weight_sum
+            self.tw = float(self.tw) / weight_sum
+
+            # define A
+            self.define_lsqr_A()
+
+            # blur target
+            self.target_v = self.blur(self.target_v)
 
         # Ref: Philip Zucker (https://bit.ly/2Tx2LuE)
         def lapl(N):
@@ -190,14 +207,19 @@ class FluidSim(object):
     def guide(self):
         assert self.target_v is not None
 
+        start_time = time.time()
         if self.guiding_alg == 'scs':
             self.v = self.initial_optim()
+        elif self.guiding_alg == 'lsqr':
+            # sparse least-squares
+            self.v = self.lsqr_optim()
         elif self.guiding_alg == 'pd':
             # primal-dual optimization step
             self.v = np.copy(self.pd_optim())
         else:
             import sys
             sys.exit('unrecognized guiding alg: %s' % self.guiding_alg)
+        print('-- guiding step time: %.4fs' % (time.time() - start_time))
 
     # ================
     # Guiding: initial
@@ -217,6 +239,57 @@ class FluidSim(object):
         result = problem.solve(solver=cp.SCS)
         v_soln = v.value.reshape(self.h, self.w, 2)
         return utils.project(v_soln, self.project_solve)
+
+    # ======================
+    # Guiding: least-squares
+    # ======================
+
+    def lsqr_optim(self):
+        obj_b = (self.cw * self.v + self.tw * self.target_v).flatten()
+        div_b = np.zeros((self.h - 2) * (self.w - 2))
+        b = np.concatenate((obj_b, div_b))
+
+        # solve
+        v_soln = sparse.linalg.lsqr(self.lsqr_A, b, iter_lim=1e3)[0]
+        v_soln = v_soln.reshape(self.h, self.w, 2)
+        return utils.project(v_soln, self.project_solve)
+
+    def flat_idxs(self, i_lst, j_lst, k_lst):
+        """Converts (row-list, column-list, channel-list)
+        indices into flat indices in the velocity field."""
+        return np.ravel_multi_index((i_lst, j_lst, k_lst), self.v.shape)
+
+    def define_lsqr_A(self):
+        # objective function
+        obj_A_data = np.ones(self.v.size)
+        obj_A_i    = np.arange(self.v.size)
+        obj_A_j    = np.arange(self.v.size)
+        num_eqns   = self.v.size
+
+        # divergence-free constraint
+        div_A_data   = []
+        div_A_i      = []
+        div_A_j      = []
+        for y in range(1, self.h - 1):
+            for x in range(1, self.w - 1):
+                i_lst = [y,   y,   y+1, y-1]
+                j_lst = [x+1, x-1, x,   x  ]
+                k_lst = [0,   0,   1,   1  ]
+                flat = self.flat_idxs(i_lst, j_lst, k_lst)
+
+                div_A_data.extend([1, -1, 1, -1])
+                div_A_i.extend([num_eqns] * 4)
+                div_A_j.extend(flat.tolist())
+                num_eqns += 1
+
+        # set up full A
+        A_data   = np.concatenate((obj_A_data, div_A_data))
+        A_i      = np.concatenate((obj_A_i,    div_A_i))
+        A_j      = np.concatenate((obj_A_j,    div_A_j))
+
+        self.lsqr_A = sparse.csc_matrix(
+            sparse.coo_matrix((A_data, (A_i, A_j)),
+                              shape=(num_eqns, self.v.size)))
 
     # ====================
     # Guiding: primal-dual
