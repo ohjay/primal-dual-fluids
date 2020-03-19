@@ -20,7 +20,7 @@ vorticity:    0.01
 # Guiding parameters
 guiding: True
 target_v: init_v_outerstar.npy
-guiding_alg: pd  # (initial, assign, pd)
+guiding_alg: pd  # (scs, assign, pd)
 pd_params:
   tau:       0.4
   sigma:     1.1

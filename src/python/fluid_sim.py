@@ -190,7 +190,7 @@ class FluidSim(object):
     def guide(self):
         assert self.target_v is not None
 
-        if self.guiding_alg == 'initial':
+        if self.guiding_alg == 'scs':
             self.v = self.initial_optim()
         elif self.guiding_alg == 'pd':
             # primal-dual optimization step
@@ -214,7 +214,7 @@ class FluidSim(object):
         problem = cp.Problem(objective)
 
         # optimize, perform projection
-        result = problem.solve()
+        result = problem.solve(solver=cp.SCS)
         v_soln = v.value.reshape(self.h, self.w, 2)
         return utils.project(v_soln, self.project_solve)
 
