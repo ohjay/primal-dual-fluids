@@ -76,6 +76,9 @@ class FluidSim(object):
         self.blur_kernel = self.blur_kernel[:, :, np.newaxis]
         self.blur = lambda field: convolve(field, self.blur_kernel, 'same')
 
+        # Blur target
+        self.target_v = self.blur(self.target_v)
+
         # Algorithm-specific guiding setup
         self.guiding_alg = config['guiding_alg']
         self.pd_params = config.get('pd_params', {})
@@ -97,9 +100,6 @@ class FluidSim(object):
 
             # define A
             self.define_lsqr_A()
-
-            # blur target
-            self.target_v = self.blur(self.target_v)
 
         # Ref: Philip Zucker (https://bit.ly/2Tx2LuE)
         def lapl(N):
