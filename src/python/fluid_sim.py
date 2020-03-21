@@ -90,7 +90,7 @@ class FluidSim(object):
             self.pd_y = np.zeros_like(self.v)
             self.pd_z = np.zeros_like(self.v)
         elif self.guiding_alg == 'lsqr':
-            # current/target weights
+            # Current/target weights
             lsqr_params = config.get('lsqr_params', {})
             self.cw = lsqr_params.get('current_w', 0.5)
             self.tw = lsqr_params.get('target_w',  0.5)
@@ -98,7 +98,7 @@ class FluidSim(object):
             self.cw = float(self.cw) / weight_sum
             self.tw = float(self.tw) / weight_sum
 
-            # define A
+            # Define A
             self.define_lsqr_A()
 
         # Ref: Philip Zucker (https://bit.ly/2Tx2LuE)
@@ -211,10 +211,10 @@ class FluidSim(object):
         if self.guiding_alg == 'scs':
             self.v = self.initial_optim()
         elif self.guiding_alg == 'lsqr':
-            # sparse least-squares
+            # Sparse least-squares
             self.v = self.lsqr_optim()
         elif self.guiding_alg == 'pd':
-            # primal-dual optimization step
+            # Primal-dual optimization step
             self.v = np.copy(self.pd_optim())
         else:
             import sys
@@ -226,16 +226,16 @@ class FluidSim(object):
     # ================
 
     def initial_optim(self):
-        # [variables] solve for a velocity field
+        # [Variables] Solve for a velocity field
         v = cp.Variable(self.v.size)
 
-        # [objective]
+        # [Objective]
         objective_term1 = cp.sum_squares(v - self.v.flatten())
         objective_term2 = cp.sum_squares(v - self.target_v.flatten())
         objective = cp.Minimize(objective_term1 + objective_term2)
         problem = cp.Problem(objective)
 
-        # optimize, perform projection
+        # Optimize, perform projection
         result = problem.solve(solver=cp.SCS)
         v_soln = v.value.reshape(self.h, self.w, 2)
         return utils.project(v_soln, self.project_solve)
@@ -249,7 +249,7 @@ class FluidSim(object):
         div_b = np.zeros((self.h - 2) * (self.w - 2))
         b = np.concatenate((obj_b, div_b))
 
-        # solve
+        # Solve
         v_soln = sparse.linalg.lsqr(self.lsqr_A, b, iter_lim=1e3)[0]
         v_soln = v_soln.reshape(self.h, self.w, 2)
         return utils.project(v_soln, self.project_solve)
@@ -260,13 +260,13 @@ class FluidSim(object):
         return np.ravel_multi_index((i_lst, j_lst, k_lst), self.v.shape)
 
     def define_lsqr_A(self):
-        # objective function
+        # Objective function
         obj_A_data = np.ones(self.v.size)
         obj_A_i    = np.arange(self.v.size)
         obj_A_j    = np.arange(self.v.size)
         num_eqns   = self.v.size
 
-        # divergence-free constraint
+        # Divergence-free constraint
         div_A_data   = []
         div_A_i      = []
         div_A_j      = []
@@ -282,7 +282,7 @@ class FluidSim(object):
                 div_A_j.extend(flat.tolist())
                 num_eqns += 1
 
-        # set up full A
+        # Set up full A
         A_data   = np.concatenate((obj_A_data, div_A_data))
         A_i      = np.concatenate((obj_A_i,    div_A_i))
         A_j      = np.concatenate((obj_A_j,    div_A_j))
@@ -311,7 +311,7 @@ class FluidSim(object):
             delta_pdz = pd_z_next - self.pd_z
             self.pd_z = pd_z_next
             self.pd_y = self.pd_z + theta * delta_pdz
-            # termination criterion
+            # Termination criterion
             eps = 1e-3 * (np.sqrt(2) + np.linalg.norm(self.pd_z))
             if np.linalg.norm(delta_pdz) <= eps:
                 break
